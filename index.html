@@ -15,37 +15,16 @@
   --border:rgba(255,255,255,.08);
 }
 
-*{
-  box-sizing:border-box;
-  -webkit-tap-highlight-color:transparent;
-}
-
 body{
   margin:0;
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto;
+  font-family:-apple-system,Segoe UI;
   background:var(--bg);
   color:var(--text);
   max-width:420px;
-  margin-inline:auto;
+  margin:auto;
   padding:14px;
-  line-height:1.5;
 }
 
-/* العناوين */
-h2{
-  font-size:18px;
-  margin:8px 0;
-  font-weight:700;
-}
-
-h3{
-  font-size:15px;
-  margin:6px 0 10px;
-  font-weight:600;
-  color:var(--muted);
-}
-
-/* الكروت */
 .card{
   background:var(--card);
   border:1px solid var(--border);
@@ -54,62 +33,30 @@ h3{
   margin:10px 0;
 }
 
-/* الفورم */
 input,select{
   width:100%;
-  padding:10px 12px;
-  font-size:14px;
+  padding:10px;
   border-radius:10px;
   border:1px solid var(--border);
   background:#181c27;
-  color:var(--text);
+  color:#fff;
   margin:6px 0;
 }
 
-/* الأزرار */
 button{
   width:100%;
   padding:11px;
-  font-size:14px;
-  border-radius:10px;
   border:none;
-  font-weight:600;
+  border-radius:10px;
   background:var(--primary);
-  color:#000;
-  margin-top:6px;
+  font-weight:bold;
 }
 
-button:active{
-  opacity:.85;
-}
-
-/* زر ثانوي */
-button.secondary{
-  background:#232840;
-  color:#fff;
-  border:1px solid var(--border);
-}
-
-/* النصوص */
-p{
-  font-size:13px;
-  margin:6px 0;
-  color:var(--muted);
-}
-
-/* السجل */
 #log p{
   background:#181c27;
-  border-radius:10px;
   padding:8px;
+  border-radius:10px;
   font-size:13px;
-  margin:6px 0;
-  border:1px solid var(--border);
-}
-
-/* الموبايل */
-@media (max-width:420px){
-  body{padding:12px}
 }
 </style>
 </head>
@@ -120,7 +67,6 @@ p{
 <div id="login">
   <h2>تسجيل الدخول</h2>
   <input id="username" placeholder="اكتب اسمك" />
-  <br>
   <button onclick="login()">دخول</button>
 </div>
 
@@ -141,29 +87,24 @@ p{
       <option>Cardio</option>
     </select>
 
-    <br>
-
     <button onclick="save('Done')">Done</button>
     <button onclick="save('Skip')">Skip</button>
   </div>
 
   <!-- WEIGHT -->
   <div class="card">
-    <h3>الوزن</h3>
-
-    <input id="startWeight" placeholder="وزن البداية" type="number">
+    <h3>وزنك</h3>
     <input id="goalWeight" placeholder="الهدف" type="number">
     <input id="currentWeight" placeholder="وزنك الحالي" type="number">
-
-    <button onclick="saveWeight()">حفظ الوزن</button>
-
+    <button onclick="saveWeight()">حفظ</button>
     <p id="weightInfo"></p>
   </div>
 
   <!-- SUMMARY -->
   <div class="card">
-    <h3>الملخص</h3>
-    <p id="summary"></p>
+    <h3>Progress</h3>
+    <h2 id="percent">0%</h2>
+    <p id="message"></p>
   </div>
 
   <!-- LOG -->
@@ -178,142 +119,148 @@ p{
 <script>
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbysJDVRV0FeI1kH52WivZ5ogI3P1cWz-AUgOWMdCn6N1TuYDEfJn-RxicF9u0PrY_4y/exec";
 
+const workouts = ["Push","Pull","Legs","Walking","Cardio"];
+
 let user = localStorage.getItem("user");
 let data = [];
 
-// ===== AUTO LOGIN =====
-if(user){
-  startApp();
-}
+if(user) startApp();
 
-// ===== LOGIN =====
+// LOGIN
 function login(){
-  const u = document.getElementById("username").value.trim();
+  const u = username.value.trim();
   if(!u) return alert("اكتب اسمك");
-  localStorage.setItem("user", u);
-  user = u;
+  localStorage.setItem("user",u);
+  user=u;
   startApp();
 }
 
-// ===== LOGOUT =====
+// LOGOUT
 function logout(){
   localStorage.removeItem("user");
   location.reload();
 }
 
-// ===== START =====
+// START
 function startApp(){
-  document.getElementById("login").style.display="none";
-  document.getElementById("app").style.display="block";
-  document.getElementById("user").innerText = "👤 " + user;
+  login.style.display="none";
+  app.style.display="block";
+  userLabel();
   load();
 }
 
-// ===== LOAD DATA (no cache) =====
+function userLabel(){
+  document.getElementById("user").innerText="👤 "+user;
+}
+
+// LOAD
 async function load(){
   try{
-    const res = await fetch(SCRIPT_URL + "?username=" + encodeURIComponent(user) + "&_=" + Date.now(), {
-      cache: "no-store"
-    });
+    const res = await fetch(SCRIPT_URL+"?username="+user+"&t="+Date.now());
     const json = await res.json();
-    data = Array.isArray(json) ? json : [];
-  }catch(e){
-    data = [];
+    data = Array.isArray(json)?json:[];
+  }catch{
+    data=[];
   }
   render();
+}
+
+// FIX DAY
+function nextDay(){
+  if(!data.length) return 1;
+  let days = data.map(x=>Number(x.day));
+  for(let i=1;i<=90;i++){
+    if(!days.includes(i)) return i;
+  }
+  return 90;
+}
+
+// RENDER
+function render(){
+  log.innerHTML="";
+  data.sort((a,b)=>b.day-a.day).forEach(e=>{
+    log.innerHTML+=`<p>Day ${e.day} - ${e.workout} - ${e.status}</p>`;
+  });
+
+  day.innerText="Day "+nextDay();
+  renderSummary();
   renderWeight();
 }
 
-// ===== GET NEXT DAY (FIX) =====
-function getNextDay(){
-  if(!data.length) return 1;
-  const maxDay = Math.max(...data.map(x => Number(x.day) || 0));
-  return Math.min(90, maxDay + 1);
-}
-
-// ===== RENDER =====
-function render(){
-  const log = document.getElementById("log");
-  log.innerHTML = "";
-
-  data
-    .sort((a,b)=>Number(b.day)-Number(a.day))
-    .forEach(e=>{
-      log.innerHTML += `<p>Day ${e.day} - ${e.workout} - ${e.status}</p>`;
-    });
-
-  document.getElementById("day").innerText = "Day " + getNextDay();
-
-  renderSummary();
-}
-
-// ===== SAVE ENTRY =====
+// SAVE
 async function save(status){
-  const workout = document.getElementById("workout").value;
+  if(!user) return alert("سجل دخول");
 
-  const entry = {
-    username: user,
-    day: getNextDay(),
-    workout,
+  const workoutVal = workout.value;
+
+  let nextWorkout = workoutVal;
+  if(status==="Done"){
+    let i=workouts.indexOf(workoutVal);
+    nextWorkout=workouts[(i+1)%workouts.length];
+  }
+
+  const entry={
+    username:user,
+    day:nextDay(),
+    workout:workoutVal,
     status,
-    ts: new Date().toISOString()
+    ts:new Date().toISOString()
   };
 
-  // optimistic UI
   data.push(entry);
   render();
 
-  try{
-    await fetch(SCRIPT_URL, {
-      method:"POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(entry)
-    });
-  }catch(e){
-    // ignore, already saved locally in UI
-  }
+  await fetch(SCRIPT_URL,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(entry)
+  });
 
-  await load(); // re-sync
+  workout.value=nextWorkout;
+  load();
 }
 
-// ===== WEIGHT SAVE =====
+// WEIGHT
 function saveWeight(){
-  const start = document.getElementById("startWeight").value;
-  const goal = document.getElementById("goalWeight").value;
-  const current = document.getElementById("currentWeight").value;
-
-  if(start)   localStorage.setItem("start_"+user, start);
-  if(goal)    localStorage.setItem("goal_"+user, goal);
-  if(current) localStorage.setItem("current_"+user, current);
-
+  localStorage.setItem("goal_"+user,goalWeight.value);
+  localStorage.setItem("current_"+user,currentWeight.value);
   renderWeight();
 }
 
-// ===== WEIGHT RENDER =====
 function renderWeight(){
-  const start = localStorage.getItem("start_"+user);
-  const goal = localStorage.getItem("goal_"+user);
-  const current = localStorage.getItem("current_"+user);
+  const goal=localStorage.getItem("goal_"+user);
+  const current=localStorage.getItem("current_"+user);
 
-  if(!start || !current){
-    document.getElementById("weightInfo").innerText = "";
+  if(!current){
+    weightInfo.innerText="";
     return;
   }
 
-  const lost = (start - current).toFixed(1);
-  const remain = goal ? (current - goal).toFixed(1) : "-";
+  const remain = goal ? (current-goal).toFixed(1) : "-";
 
-  document.getElementById("weightInfo").innerText =
-    `بدأت: ${start} كجم | الآن: ${current} كجم | خسرت: ${lost} كجم | المتبقي: ${remain}`;
+  weightInfo.innerText =
+  `الوزن: ${current} | المتبقي: ${remain}`;
 }
 
-// ===== SUMMARY =====
+// SUMMARY (🔥 هذا الي تبيه)
 function renderSummary(){
-  let done = data.filter(x=>x.status==="Done").length;
-  let skip = data.filter(x=>x.status==="Skip").length;
+  if(!data.length){
+    percent.innerText="0%";
+    message.innerText="ابدأ التحدي 💪";
+    return;
+  }
 
-  document.getElementById("summary").innerText =
-    `Done: ${done} | Skip: ${skip}`;
+  let done = data.filter(x=>x.status==="Done").length;
+  let total = data.length;
+
+  let p = Math.round((done/total)*100);
+
+  percent.innerText = p + "%";
+
+  if(p>=90) message.innerText="🔥 بطل!";
+  else if(p>=70) message.innerText="💪 ممتاز";
+  else if(p>=50) message.innerText="👍 جيد";
+  else message.innerText="🚀 شد حيلك";
 }
 </script>
 
