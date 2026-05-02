@@ -1,266 +1,136 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>90 Days Fitness</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>نظام 90 يوم</title>
 
 <style>
-:root {
-  --bg:#0f1117;
-  --card:#1e2335;
-  --text:#f5f7fa;
-  --muted:#9aa3b2;
-  --primary:#3de888;
-  --border:rgba(255,255,255,.08);
-}
-
-body{
-  margin:0;
-  font-family:-apple-system,Segoe UI;
-  background:var(--bg);
-  color:var(--text);
-  max-width:420px;
-  margin:auto;
-  padding:14px;
-}
-
-.card{
-  background:var(--card);
-  border:1px solid var(--border);
-  border-radius:14px;
-  padding:14px;
-  margin:10px 0;
-}
-
-input,select{
-  width:100%;
-  padding:10px;
-  border-radius:10px;
-  border:1px solid var(--border);
-  background:#181c27;
-  color:#fff;
-  margin:6px 0;
-}
-
-button{
-  width:100%;
-  padding:11px;
-  border:none;
-  border-radius:10px;
-  background:var(--primary);
-  font-weight:bold;
-}
-
-#log p{
-  background:#181c27;
-  padding:8px;
-  border-radius:10px;
-  font-size:13px;
-}
+body{background:#0f1117;color:#fff;font-family:sans-serif;text-align:center;padding:20px}
+input,select,button{margin:5px;padding:10px;border-radius:8px;border:none}
+button{background:#3de888;font-weight:bold}
+.hidden{display:none}
 </style>
 </head>
 
 <body>
 
 <!-- LOGIN -->
-<div id="login">
-  <h2>تسجيل الدخول</h2>
-  <input id="username" placeholder="اكتب اسمك" />
-  <button onclick="login()">دخول</button>
+<div id="loginScreen">
+<h2>تسجيل الدخول</h2>
+<input id="username" placeholder="اسم المستخدم"><br>
+<input id="pin" placeholder="PIN 4 أرقام" type="password"><br>
+<button onclick="login()">دخول</button>
+<p id="err" style="color:red"></p>
 </div>
 
 <!-- APP -->
-<div id="app" style="display:none">
+<div id="app" class="hidden">
 
-  <h2 id="user"></h2>
+<h2 id="userLabel"></h2>
 
-  <!-- WORKOUT -->
-  <div class="card">
-    <h3 id="day">Day 1</h3>
+<select id="day"></select>
+<select id="workout"></select>
+<select id="status">
+<option value="Done">Done</option>
+<option value="Light">Light</option>
+<option value="Low">Low</option>
+<option value="Skip">Skip</option>
+</select>
 
-    <select id="workout">
-      <option>Push</option>
-      <option>Pull</option>
-      <option>Legs</option>
-      <option>Walking</option>
-      <option>Cardio</option>
-    </select>
+<br>
+<button onclick="save()">حفظ</button>
 
-    <button onclick="save('Done')">Done</button>
-    <button onclick="save('Skip')">Skip</button>
-  </div>
+<h3>البيانات:</h3>
+<pre id="log"></pre>
 
-  <!-- WEIGHT -->
-  <div class="card">
-    <h3>وزنك</h3>
-    <input id="goalWeight" placeholder="الهدف" type="number">
-    <input id="currentWeight" placeholder="وزنك الحالي" type="number">
-    <button onclick="saveWeight()">حفظ</button>
-    <p id="weightInfo"></p>
-  </div>
+<button onclick="logout()">تسجيل خروج</button>
 
-  <!-- SUMMARY -->
-  <div class="card">
-    <h3>Progress</h3>
-    <h2 id="percent">0%</h2>
-    <p id="message"></p>
-  </div>
-
-  <!-- LOG -->
-  <div class="card">
-    <h3>السجل</h3>
-    <div id="log"></div>
-  </div>
-
-  <button onclick="logout()">Logout</button>
 </div>
 
 <script>
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbysJDVRV0FeI1kH52WivZ5ogI3P1cWz-AUgOWMdCn6N1TuYDEfJn-RxicF9u0PrY_4y/exec";
+// ================= CONFIG =================
+const KEY = "app_users";
+let currentUser = null;
+let data = {};
 
-const workouts = ["Push","Pull","Legs","Walking","Cardio"];
-
-let user = localStorage.getItem("user");
-let data = [];
-
-if(user) startApp();
-
-// LOGIN
+// ================= LOGIN =================
 function login(){
   const u = username.value.trim();
-  if(!u) return alert("اكتب اسمك");
-  localStorage.setItem("user",u);
-  user=u;
-  startApp();
-}
+  const p = pin.value.trim();
 
-// LOGOUT
-function logout(){
-  localStorage.removeItem("user");
-  location.reload();
-}
-
-// START
-function startApp(){
-  login.style.display="none";
-  app.style.display="block";
-  userLabel();
-  load();
-}
-
-function userLabel(){
-  document.getElementById("user").innerText="👤 "+user;
-}
-
-// LOAD
-async function load(){
-  try{
-    const res = await fetch(SCRIPT_URL+"?username="+user+"&t="+Date.now());
-    const json = await res.json();
-    data = Array.isArray(json)?json:[];
-  }catch{
-    data=[];
+  if(!u || !/^\d{4}$/.test(p)){
+    err.textContent="PIN لازم 4 أرقام";
+    return;
   }
+
+  let users = JSON.parse(localStorage.getItem(KEY)||"{}");
+
+  // تسجيل جديد
+  if(!users[u]){
+    users[u] = { pin:p, data:{} };
+    localStorage.setItem(KEY, JSON.stringify(users));
+  }
+
+  // تحقق
+  if(users[u].pin !== p){
+    err.textContent="PIN خطأ";
+    return;
+  }
+
+  currentUser = u;
+  data = users[u].data || {};
+  start();
+}
+
+// ================= START =================
+function start(){
+  loginScreen.classList.add("hidden");
+  app.classList.remove("hidden");
+  userLabel.textContent="👤 "+currentUser;
+
+  day.innerHTML="";
+  for(let i=1;i<=90;i++){
+    day.innerHTML += `<option>${i}</option>`;
+  }
+
+  ["Push","Pull","Legs","Cardio"].forEach(w=>{
+    workout.innerHTML += `<option>${w}</option>`;
+  });
+
   render();
 }
 
-// FIX DAY
-function nextDay(){
-  if(!data.length) return 1;
-  let days = data.map(x=>Number(x.day));
-  for(let i=1;i<=90;i++){
-    if(!days.includes(i)) return i;
-  }
-  return 90;
-}
+// ================= SAVE =================
+function save(){
+  const d = day.value;
 
-// RENDER
-function render(){
-  log.innerHTML="";
-  data.sort((a,b)=>b.day-a.day).forEach(e=>{
-    log.innerHTML+=`<p>Day ${e.day} - ${e.workout} - ${e.status}</p>`;
-  });
-
-  day.innerText="Day "+nextDay();
-  renderSummary();
-  renderWeight();
-}
-
-// SAVE
-async function save(status){
-  if(!user) return alert("سجل دخول");
-
-  const workoutVal = workout.value;
-
-  let nextWorkout = workoutVal;
-  if(status==="Done"){
-    let i=workouts.indexOf(workoutVal);
-    nextWorkout=workouts[(i+1)%workouts.length];
+  // منع التعديل بعد Done
+  if(data[d]?.status === "Done"){
+    alert("🚫 لا يمكن تعديل يوم مكتمل");
+    return;
   }
 
-  const entry={
-    username:user,
-    day:nextDay(),
-    workout:workoutVal,
-    status,
-    ts:new Date().toISOString()
+  data[d] = {
+    workout: workout.value,
+    status: status.value
   };
 
-  data.push(entry);
+  let users = JSON.parse(localStorage.getItem(KEY));
+  users[currentUser].data = data;
+  localStorage.setItem(KEY, JSON.stringify(users));
+
   render();
-
-  await fetch(SCRIPT_URL,{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify(entry)
-  });
-
-  workout.value=nextWorkout;
-  load();
 }
 
-// WEIGHT
-function saveWeight(){
-  localStorage.setItem("goal_"+user,goalWeight.value);
-  localStorage.setItem("current_"+user,currentWeight.value);
-  renderWeight();
+// ================= RENDER =================
+function render(){
+  log.textContent = JSON.stringify(data,null,2);
 }
 
-function renderWeight(){
-  const goal=localStorage.getItem("goal_"+user);
-  const current=localStorage.getItem("current_"+user);
-
-  if(!current){
-    weightInfo.innerText="";
-    return;
-  }
-
-  const remain = goal ? (current-goal).toFixed(1) : "-";
-
-  weightInfo.innerText =
-  `الوزن: ${current} | المتبقي: ${remain}`;
-}
-
-// SUMMARY (🔥 هذا الي تبيه)
-function renderSummary(){
-  if(!data.length){
-    percent.innerText="0%";
-    message.innerText="ابدأ التحدي 💪";
-    return;
-  }
-
-  let done = data.filter(x=>x.status==="Done").length;
-  let total = data.length;
-
-  let p = Math.round((done/total)*100);
-
-  percent.innerText = p + "%";
-
-  if(p>=90) message.innerText="🔥 بطل!";
-  else if(p>=70) message.innerText="💪 ممتاز";
-  else if(p>=50) message.innerText="👍 جيد";
-  else message.innerText="🚀 شد حيلك";
+// ================= LOGOUT =================
+function logout(){
+  location.reload();
 }
 </script>
 
